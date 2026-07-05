@@ -1,3 +1,6 @@
+/* fileno() is POSIX, not plain C11; expose it under strict -std=c11. */
+#define _XOPEN_SOURCE 700
+
 #include "log.h"
 
 #include <stdarg.h>
