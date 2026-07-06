@@ -25,9 +25,9 @@ Log_level_t log_get_level(void);
  // Internal implementation Do not call directly.
 void log_record(
 	Log_level_t level,
-	const char *file,
-	int         line,
-	const char *func,
+	const char *file __attribute__((unused)),
+	int         line __attribute__((unused)),
+	const char *func __attribute__((unused)),
 	int         new_line,
 	const char *fmt,
 	...
@@ -43,25 +43,25 @@ void log_record(
 
 
 #define LOG_CUSTOM(LOG_LEVEL, NEW_LINE, ...) \
-	log_record(LOG_LEVEL, __FILE__, __LINE__, __func__, NEW_LINE, __VA_ARGS__)
+	log_record(LOG_LEVEL, __FILE__, __LINE__, __FUNCTION__, NEW_LINE, __VA_ARGS__)
 
 #define LOG_PERROR(...) \
 	do { \
-		log_record(LOG_LEVEL_ERROR, __FILE__, __LINE__, __func__, 0, __VA_ARGS__); \
+		log_record(LOG_LEVEL_ERROR, __FILE__, __LINE__, __FUNCTION__, 0, __VA_ARGS__); \
 		perror(" "); \
 	} while (0)
 
 #define LOG_ERROR(...) \
-	log_record(LOG_LEVEL_ERROR, __FILE__, __LINE__, __func__, 1, __VA_ARGS__)
+	log_record(LOG_LEVEL_ERROR, __FILE__, __LINE__, __FUNCTION__, 1, __VA_ARGS__)
 
 #define LOG_WARN(...) \
-	log_record(LOG_LEVEL_WARN, __FILE__, __LINE__, __func__, 1, __VA_ARGS__)
+	log_record(LOG_LEVEL_WARN, __FILE__, __LINE__, __FUNCTION__, 1, __VA_ARGS__)
 
 #define LOG_INFO(...) \
-	log_record(LOG_LEVEL_INFO, __FILE__, __LINE__, __func__, 1, __VA_ARGS__)
+	log_record(LOG_LEVEL_INFO, __FILE__, __LINE__, __FUNCTION__, 1, __VA_ARGS__)
 
 #define LOG_DEBUG(...) \
-	log_record(LOG_LEVEL_DEBUG, __FILE__, __LINE__, __func__, 1, __VA_ARGS__)
+	log_record(LOG_LEVEL_DEBUG, __FILE__, __LINE__, __FUNCTION__, 1, __VA_ARGS__)
 
 
 #else

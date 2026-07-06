@@ -1,3 +1,18 @@
+# Makefile — linkrot build system
+#
+# Targets:
+#   all     — release build (-O3)
+#   debug   — debug build (-g3 -DDEBUG)
+#   strip   — strip debug symbols
+#   install — install to PREFIX
+#   uninstall
+#   clean
+#
+# Options (set via environment or on the command line):
+#   make debug -B O_DEBUG=1  — debug build
+#
+# macOS prerequisite: brew install argp-standalone
+
 UNAME_S := $(shell uname -s)
 
 PREFIX ?= /usr/local
@@ -7,52 +22,51 @@ STRIP ?= strip
 PKG_CONFIG ?= pkg-config
 INSTALL ?= install
 
-CFLAGS_OPTIMIZATION ?= -O3
-
 BUILD = build
 BIN   = linkrot
 
 HEADERS   = $(wildcard src/*.h)
 SRC       = $(wildcard src/*.c)
-OUT       = $(SRC:%.c=$(BUILD)/%.o)
-
 
 CFLAGS += -Isrc -std=c17 -DCOMPILED_TIME_PREFIX='"$(PREFIX)"'
 
-CFLAGS +=  -Wall -Wextra -Wpedantic \
-           -Wstrict-prototypes -Wmissing-prototypes \
-           -Wshadow -Wconversion \
-           -Wno-missing-field-initializers
+CFLAGS +=  -Wshadow -Wconversion \
+           -Wall -Wextra -Wpedantic \
+           -Wno-missing-field-initializers \
+           -Wstrict-prototypes -Wmissing-prototypes
 
+# Common flags
+CFLAGS += -Isrc -std=c17
 
-# convert targets to flags for backwards compatibility
-O_DEBUG := 0  # debug binary
-O_LOG_TIME_STAMP := 0  # debug binary
+# Convert targets to flags for backwards compatibility
+O_DEBUG := 0  # Debug binary (0 = release, 1 = debug)
 
-ifneq ($(filter log_time_stamp,$(MAKECMDGOALS)),)
-	O_LOG_TIME_STAMP := 1
-endif
 ifneq ($(filter debug,$(MAKECMDGOALS)),)
 	O_DEBUG := 1
 endif
 
 ifeq ($(strip $(O_DEBUG)),1)
 	CFLAGS += -g3 -DDEBUG -DLOG_SHOW_SOURCE_LOCATION
+
+	LDFLAGS += -fsanitize=address -fsanitize=undefined
+	CFLAGS += -fstack-usage \
+	          -fsanitize=address \
+	          -fsanitize=undefined
+
     ifneq (,$(findstring clang,$(CC)))
 		CFLAGS += -ffreestanding
     endif
 else
-	CFLAGS += $(CFLAGS_OPTIMIZATION)
-endif
-ifeq ($(strip $(O_LOG_TIME_STAMP)),1)
-	CFLAGS += -DLOG_SHOW_TIME_STAMP
+	CFLAGS += -O3
 endif
 
-# Check if the OS is macOS
+# Platform-specific settings
 ifeq ($(UNAME_S),Darwin)
-    LDLIBS += -largp
-else # Else every thing is linux
-    CFLAGS += -D_GNU_SOURCE
+	# macOS: need argp from Homebrew (brew install argp-standalone)
+	LDLIBS += -largp
+else
+	# Linux: _GNU_SOURCE for strptime, etc.
+	CFLAGS += -D_GNU_SOURCE
 endif
 
 
@@ -64,6 +78,8 @@ endif
 #     $(error "sdl3 not found. Install it via your package manager.")
 # endif
 
+OUT += $(SRC:%.c=$(BUILD)/%.o)
+
 all: $(BIN)
 
 help: ## Show this help
@@ -73,11 +89,11 @@ help: ## Show this help
 $(BUILD): ## Create build directories automatically
 	mkdir -p $(BUILD)
 
-$(BUILD)/%.o: %.c $(SHARED_HDR) $(DAEMON_HDR)
+$(BUILD)/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BIN): $(SRC) $(OUT) $(HEADERS) ## Build the linkrot binary
+$(BIN): $(SRC) $(OUT) ## Build the linkrot binary
 	$(CC) $(LDFLAGS) -o $@ $(OUT) $(LDLIBS)
 
 debug: $(BIN) ## Build the debug binary run `make debug -B O_DEBUG=1`

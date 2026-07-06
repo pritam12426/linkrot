@@ -47,9 +47,9 @@ static const Level_meta_t G_level_meta[] = {
 /* ------------------------------------------------------------------ */
 
 void log_record(Log_level_t level,
-                const char *file,
-                int         line,
-                const char *func,
+                const char *file __attribute__((unused)),
+                int         line __attribute__((unused)),
+                const char *func __attribute__((unused)),
                 int         new_line,
                 const char *fmt,
                 ...)
@@ -80,4 +80,5 @@ void log_record(Log_level_t level,
 	va_end(ap);
 
 	if (new_line) fputc('\n', stderr);
+	fflush(stderr);
 }

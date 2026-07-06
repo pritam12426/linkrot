@@ -25,16 +25,18 @@ static bool path_matches_glob(const char *path)
 static void delete_broken_link(const char *fpath)
 {
 	if (G_Arguments.delete_cmd) {
-		char cmd[PATH_MAX + 256];
-		int  n = snprintf(cmd, sizeof(cmd), "%s %s", G_Arguments.delete_cmd, fpath);
-
-		if (n < 0 || (size_t)n >= sizeof(cmd)) {
-			LOG_ERROR("Path too long to build delete command for '%s'", fpath);
+		pid_t pid = fork();
+		if (pid == 0) {
+			execlp(G_Arguments.delete_cmd, G_Arguments.delete_cmd, fpath, (char *)NULL);
+			_exit(127);
+		} else if (pid < 0) {
+			LOG_PERROR("fork failed for delete-cmd '%s'", G_Arguments.delete_cmd);
 			G_error_count++;
 			return;
 		}
 
-		if (system(cmd) != 0) {
+		int status;
+		if (waitpid(pid, &status, 0) < 0 || !WIFEXITED(status) || WEXITSTATUS(status) != 0) {
 			LOG_ERROR("delete-cmd '%s' failed for '%s'", G_Arguments.delete_cmd, fpath);
 			G_error_count++;
 			return;
@@ -75,8 +77,12 @@ int visit(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ft
 
 	char target_buf[PATH_MAX];
 	ssize_t len = readlink(fpath, target_buf, sizeof(target_buf) - 1);
-	if (len >= 0) target_buf[len] = '\0';
-	else          strcpy(target_buf, "?");
+	if (len >= 0) {
+		target_buf[len] = '\0';
+	} else {
+		LOG_PERROR("readlink failed for '%s'", fpath);
+		strcpy(target_buf, "?");
+	}
 
 	G_found_count++;
 
