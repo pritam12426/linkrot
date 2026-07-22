@@ -1,80 +1,123 @@
+/*
+ * log.h — Thread-safe logger interface
+ *
+ * Logging macros (severity, high → low):
+ *   LOG_FATAL(...)  — unrecoverable errors
+ *   LOG_ERROR(...)  — recoverable errors
+ *   LOG_WARN(...)   — warnings
+ *   LOG_INFO(...)   — informational messages
+ *   LOG_DEBUG(...)  — debug details
+ *   LOG_TRACE(...)  — fine-grained tracing
+ *
+ * Build-time flags (set via -D in Makefile):
+ *   LOG_SHOW_TIME_STAMP        — prepend [HH:MM:SS.ffffff]
+ *   LOG_SHOW_SOURCE_LOCATION   — append [file:line:func]
+ *
+ * Usage:
+ *   log_init(LOG_LEVEL_DEBUG);
+ *   LOG_INFO("server started on port %d", 8080);
+ */
+
 #ifndef _LOG_H_
 #define _LOG_H_
 
 
-extern int G_use_color;
+#include <stdbool.h> // bool
 
 #ifdef __cplusplus
 extern "C" {
 #endif  // __cplusplus
 
 
+// Log severity levels (lower number = higher priority)
 typedef enum {
-	LOG_LEVEL_ERROR  = 0,
-	LOG_LEVEL_WARN   = 1,
-	LOG_LEVEL_INFO   = 2,
-	LOG_LEVEL_DEBUG  = 3
+	LOG_LEVEL_OFF   = 0,
+	LOG_LEVEL_FATAL = 1,
+	LOG_LEVEL_ERROR = 2,
+	LOG_LEVEL_WARN  = 3,
+	LOG_LEVEL_INFO  = 4,
+	LOG_LEVEL_DEBUG = 5,
+	LOG_LEVEL_TRACE = 6,
 } Log_level_t;
 
+// Initialise the logger. Thread-safe; may be called multiple times.
+//   level: minimum severity to emit (e.g. LOG_LEVEL_INFO).
+void log_init(Log_level_t level);
 
 // Logger configuration
 void        log_set_level(Log_level_t level);
 Log_level_t log_get_level(void);
 
+// Returns true if the logger is currently emitting ANSI color codes.
+// Color is enabled automatically when the output is a TTY.
+bool log_use_color(void);
 
- // Internal implementation Do not call directly.
-void log_record(
-	Log_level_t level,
-	const char *file __attribute__((unused)),
-	int         line __attribute__((unused)),
-	const char *func __attribute__((unused)),
-	int         new_line,
-	const char *fmt,
-	...
-);
+// Internal implementation — do not call directly.
+void log_record(Log_level_t level,
+                const char *file __attribute__((unused)),
+                int         line __attribute__((unused)),
+                const char *func __attribute__((unused)),
+                int         new_line,
+                const char *fmt,
+                ...);
 
 
 /* --------------------------------------------------
  * Public logging macros
  * -------------------------------------------------- */
 
+// Check if messages at the given level would be emitted right now.
+#define LOG_LEVEL_IS_ENABLED(level) (log_get_level() >= (level))
+
 
 #ifdef LOG_SHOW_SOURCE_LOCATION
 
+// Log with custom newline behaviour (0 = no newline, 1 = with newline)
+// Used internally; prefer LOG_FATAL / LOG_ERROR / LOG_WARN / etc.
+#define LOG_CUSTOM(LOG_LEVEL, NEW_LINE, ...)                                   \
+	log_record(LOG_LEVEL, __FILE__, __LINE__, __func__, NEW_LINE, __VA_ARGS__)
 
-#define LOG_CUSTOM(LOG_LEVEL, NEW_LINE, ...) \
-	log_record(LOG_LEVEL, __FILE__, __LINE__, __FUNCTION__, NEW_LINE, __VA_ARGS__)
-
-#define LOG_PERROR(...) \
-	do { \
-		log_record(LOG_LEVEL_ERROR, __FILE__, __LINE__, __FUNCTION__, 0, __VA_ARGS__); \
-		perror(" "); \
+// Log an error and append strerror(errno) (via perror)
+#define LOG_PERROR(...)                                                            \
+	do {                                                                           \
+		log_record(LOG_LEVEL_ERROR, __FILE__, __LINE__, __func__, 0, __VA_ARGS__); \
+		perror(" ");                                                               \
 	} while (0)
 
+#define LOG_FATAL(...) \
+	log_record(LOG_LEVEL_FATAL, __FILE__, __LINE__, __func__, 1, __VA_ARGS__)
+
 #define LOG_ERROR(...) \
-	log_record(LOG_LEVEL_ERROR, __FILE__, __LINE__, __FUNCTION__, 1, __VA_ARGS__)
+	log_record(LOG_LEVEL_ERROR, __FILE__, __LINE__, __func__, 1, __VA_ARGS__)
 
 #define LOG_WARN(...) \
-	log_record(LOG_LEVEL_WARN, __FILE__, __LINE__, __FUNCTION__, 1, __VA_ARGS__)
+	log_record(LOG_LEVEL_WARN, __FILE__, __LINE__, __func__, 1, __VA_ARGS__)
 
 #define LOG_INFO(...) \
-	log_record(LOG_LEVEL_INFO, __FILE__, __LINE__, __FUNCTION__, 1, __VA_ARGS__)
+	log_record(LOG_LEVEL_INFO, __FILE__, __LINE__, __func__, 1, __VA_ARGS__)
 
 #define LOG_DEBUG(...) \
-	log_record(LOG_LEVEL_DEBUG, __FILE__, __LINE__, __FUNCTION__, 1, __VA_ARGS__)
+	log_record(LOG_LEVEL_DEBUG, __FILE__, __LINE__, __func__, 1, __VA_ARGS__)
 
+#define LOG_TRACE(...) \
+	log_record(LOG_LEVEL_TRACE, __FILE__, __LINE__, __func__, 1, __VA_ARGS__)
 
 #else
 
-
-#define LOG_CUSTOM(LOG_LEVEL, NEW_LINE, ...) \
+// Log with custom newline behaviour (0 = no newline, 1 = with newline)
+// Used internally; prefer LOG_FATAL / LOG_ERROR / LOG_WARN / etc.
+#define LOG_CUSTOM(LOG_LEVEL, NEW_LINE, ...)                                   \
 	log_record(LOG_LEVEL, 0, 0, 0, NEW_LINE, __VA_ARGS__)
 
-#define LOG_PERROR(...) \
-	do { \
+// Log an error and append strerror(errno) (via perror)
+#define LOG_PERROR(...)                                                            \
+	do {                                                                           \
 		log_record(LOG_LEVEL_ERROR, 0, 0, 0, 0, __VA_ARGS__); \
-		perror(" "); \
+		perror(" ");                                                               \
 	} while (0)
+
+#define LOG_FATAL(...) \
+	log_record(LOG_LEVEL_FATAL, 0, 0, 0, 1, __VA_ARGS__)
 
 #define LOG_ERROR(...) \
 	log_record(LOG_LEVEL_ERROR, 0, 0, 0, 1, __VA_ARGS__)
@@ -88,13 +131,15 @@ void log_record(
 #define LOG_DEBUG(...) \
 	log_record(LOG_LEVEL_DEBUG, 0, 0, 0, 1, __VA_ARGS__)
 
+#define LOG_TRACE(...) \
+	log_record(LOG_LEVEL_TRACE, 0, 0, 0, 1, __VA_ARGS__)
 
 #endif  // LOG_SHOW_SOURCE_LOCATION
 
 
 #ifdef __cplusplus
 }
-#endif // __cplusplus
+#endif  // __cplusplus
 
 
 #endif  // _LOG_H_

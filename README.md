@@ -2,6 +2,8 @@
 
 Find and clean up broken symbolic links, recursively, on macOS and Linux.
 
+Multi-threaded producer-consumer architecture: one thread walks the filesystem, N workers process broken symlinks in parallel.
+
 ## Install
 
 ```sh
@@ -26,16 +28,19 @@ Pass a directory as a positional argument, or scan the current directory.
 
 ### Options
 
-| Flag       | Description                                         |
-| ---------- | --------------------------------------------------- |
-| `-L DEPTH` | Max traversal depth (0 = current dir only)          |
-| `-G GLOB`  | Glob pattern (default: `**/*`)                      |
-| `-l LEVEL` | Log level: error, warn, info, debug (default: info) |
-| `-n`       | Preview deletions without executing                 |
-| `-D`       | Permanently delete broken symlinks                  |
-| `-C CMD`   | Custom delete command (e.g., `trash`)               |
-| `-P`       | Print broken symlink paths only                     |
-| `-0`       | Null-separate output (for `xargs -0`)               |
+| Flag       | Description                                                |
+| ---------- | ---------------------------------------------------------- |
+| `-D`       | Permanently delete broken symlinks                         |
+| `-C CMD`   | Custom delete command (e.g., `trash`)                      |
+| `-P`       | Print broken symlink paths only                            |
+| `-n`       | Preview deletions without executing (requires `-D` or `-C`)|
+| `-L DEPTH` | Max traversal depth (0 = current dir only)                 |
+| `-G GLOB`  | Glob pattern (default: `**/*`)                             |
+| `-j NUM`   | Worker threads (default: CPU count, max 128)               |
+| `-l LEVEL` | Log level: off, fatal, error, warn, info, debug, trace     |
+| `-0`       | Null-separate output (for `xargs -0`)                      |
+
+`-D`, `-P`, and `-C` are mutually exclusive.
 
 ### Examples
 
@@ -47,7 +52,7 @@ linkrot ~/.local/bin
 linkrot -G "*.o" src/
 
 # Dry-run what would be deleted
-linkrot -n ~/Downloads
+linkrot -n -D ~/Downloads
 
 # Permanently delete broken symlinks
 linkrot -D ~/Documents
@@ -60,13 +65,17 @@ linkrot -P -0 ~/somedir | xargs -0 rm
 
 # Limit scan depth to one level
 linkrot -L 1 ~/projects
+
+# Use 8 worker threads
+linkrot -j 8 -D ~/Downloads
 ```
 
 ## Build
 
 ```sh
+make help     # show available targets
 make          # release build (-O3)
-make debug    # debug build (-g3 -DDEBUG -DLOG_SHOW_SOURCE_LOCATION)
+make debug    # debug build (-g3, ASan, UBSan)
 make clean    # remove build artifacts
 ```
 
